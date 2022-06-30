@@ -1,0 +1,84 @@
+---
+title: "housing"
+output: word_document
+date: '2022-06-29'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(gbm)
+library(caret)
+library(corrplot)
+```
+
+## Housing Regression
+
+```{r}
+train <- read.csv(file="/Users/hou/Desktop/Kaggle/house-prices-advanced-regression-techniques/train.csv")
+test <- read.csv("/Users/hou/Desktop/Kaggle/house-prices-advanced-regression-techniques/test.csv")
+train <- train[,-1]
+
+train[is.na(train)] <- 0
+
+to_factor = colnames(train[,sapply(train, is.character)])
+to_factor = c(to_factor, "MoSold", "YrSold")
+
+for (i in to_factor){
+  train[,i] <- as.factor(train[,i])
+}
+```
+
+## Exploratory Data Analysis
+
+```{r}
+summary(train)
+```
+```{r}
+num_features=train[, unlist(lapply(train, is.numeric))]
+corr <- cor(num_features, use="pairwise.complete.obs")
+
+corrPrice=cor(num_features, train$SalePrice)
+corrplot(corr,tl.cex=.5)
+highCorrPrice = corrPrice[abs(corrPrice)>.5]
+corrPrice
+highCorr = findCorrelation(corr, cutoff = .5)
+highCorr
+corr
+```
+```{r}
+hist(train$SalePrice)
+```
+
+## Data Partitioning
+```{r}
+set.seed(1050)
+sample <- createDataPartition(y=train$SalePrice, p=.8, list=FALSE)
+df_train <- train[sample,]
+df_test <- train[-sample,]
+```
+
+## Model Creation
+```{r}
+gbmModel <- gbm(SalePrice~., data=df_train, distribution="gaussian", n.trees=3000, shrinkage=.1, interaction.depth=3, n.minobsinnode=10, cv.folds=10)
+
+best <- which.min(gbmModel$cv.error)
+sqrt(gbmModel$cv.error[best])
+```
+```{r}
+testPrice <- predict(gbmModel, df_test)
+testPrice
+
+RMSE(testPrice, df_test$SalePrice)
+```
+
+## Submission Prediction
+```{r}
+test
+```
+
+```{r}
+submit <- data.frame(Id = test$Id, SalePrice = predict(gbmModel, test))
+submit
+write.csv(submit, "housing_submission.csv", row.names = FALSE)
+```
+
